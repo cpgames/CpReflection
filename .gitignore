@@ -1,0 +1,33 @@
+# Ignore object files, shared libraries, executables
+*.userprefs
+*.suo
+*.so
+*.o
+*.pdb
+*.mdb
+*.log
+*.db
+*.vs
+*.backup
+*.tss
+
+# Ignore folders
+bin/
+Backup/
+.git/
+obj/
+bin/
+Builds/
+log/
+Temp/
+packages/
+
+# Unity specific
+UnityExamples/Temp
+UnityExamples/*.csproj
+UnityExamples/Client.CSharp.csproj
+UnityExamples/*.unityproj
+UnityExamples/*.sln
+*.user
+*.userprefs
+*.DS_store
