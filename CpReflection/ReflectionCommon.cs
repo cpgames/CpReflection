@@ -10,6 +10,10 @@ namespace cpGames.core.CpReflection
         #region Methods
         public static Type GetElementType(this Type type)
         {
+            if (type == null)
+            {
+                return null;
+            }
             if (type.GetElementType() != null)
             {
                 return type.GetElementType();
@@ -23,54 +27,25 @@ namespace cpGames.core.CpReflection
 
         public static bool IsStruct(this Type type)
         {
-            return type.IsValueType && !type.IsPrimitive;
+            return type.IsValueType && !type.IsPrimitive && !type.IsEnum;
         }
-
-        public static List<Type> FindAllRelatedTypes(this Type type, Assembly assembly)
+        
+        public static IEnumerable<Type> FindAllDerivedTypes(this Type type, Assembly assembly = null, bool includeSelf = false, bool includeAbstract = false)
         {
-            var types = new List<Type>();
-            if (!type.IsAbstract)
-            {
-                types.Add(type);
-            }
-            foreach (var derivedType in assembly.GetTypes().Where(t => t != type && type.IsAssignableFrom(t)))
-            {
-                types.AddRange(derivedType.FindAllRelatedTypes(assembly));
-            }
-            return types;
-        }
-
-        public static List<Type> FindAllRelatedTypes(this Type type)
-        {
-            var assembly = Assembly.GetAssembly(type);
-            return type.FindAllRelatedTypes(assembly);
-        }
-
-        public static IEnumerable<Type> FindAllDerivedTypes(this Type type, Assembly assembly)
-        {
-            var derivedType = type;
+            if (assembly == null)
+                assembly = Assembly.GetAssembly(type);
             return assembly
                 .GetTypes()
                 .Where(t =>
-                    t != derivedType &&
-                    derivedType.IsAssignableFrom(t));
+                    (includeSelf || t != type) &&
+                    (includeAbstract || !t.IsAbstract) &&
+                    type.IsAssignableFrom(t));
         }
+        
 
-        public static IEnumerable<Type> FindAllDerivedTypes(this Type type)
+        public static IEnumerable<Type> FindAllDerivedTypes<T>(Assembly assembly = null, bool includeSelf = false, bool includeAbstract = false)
         {
-            var assembly = Assembly.GetAssembly(type);
-            return type.FindAllDerivedTypes(assembly);
-        }
-
-        public static IEnumerable<Type> FindAllDerivedTypes<T>()
-        {
-            return FindAllDerivedTypes(typeof(T));
-        }
-
-        public static IEnumerable<Type> FindAllDerivedTypes<T>(Assembly assembly)
-        {
-            var type = typeof(T);
-            return type.FindAllDerivedTypes(assembly);
+            return FindAllDerivedTypes(typeof(T), assembly, includeSelf, includeAbstract);
         }
 
         public static bool IsTypeOrDerived(this Type derivedType, Type baseType)
