@@ -1,2 +1,0 @@
-# CpReflection
-C# Reflection helpers
