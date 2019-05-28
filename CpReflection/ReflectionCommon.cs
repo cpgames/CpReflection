@@ -8,7 +8,13 @@ namespace cpGames.core.CpReflection
     public static class ReflectionCommon
     {
         #region Methods
-        public static Type GetElementType(this Type type)
+        /// <summary>
+        /// Get element type of a collection.
+        /// Unlike default GetElementType, drills into base classes to find first base class that is a collection.
+        /// </summary>
+        /// <param name="type">Type to search</param>
+        /// <returns>Element type if found, otherwise null</returns>
+        public static Type GetElementTypeEx(this Type type)
         {
             if (type == null)
             {
@@ -22,18 +28,33 @@ namespace cpGames.core.CpReflection
             {
                 return type.GetGenericArguments()[0];
             }
-            return GetElementType(type.BaseType);
+            return GetElementTypeEx(type.BaseType);
         }
 
+        /// <summary>
+        /// Checks if type is a struct.
+        /// </summary>
+        /// <param name="type">Type to check</param>
+        /// <returns>True if a struct, otherwise False</returns>
         public static bool IsStruct(this Type type)
         {
             return type.IsValueType && !type.IsPrimitive && !type.IsEnum;
         }
-        
+
+        /// <summary>
+        /// Find all derived types of a base class.
+        /// </summary>
+        /// <param name="type">Type of base class to search</param>
+        /// <param name="assembly">Assembly to search (if null use type's assembly)</param>
+        /// <param name="includeSelf">Include searched type in return value</param>
+        /// <param name="includeAbstract">Include abstract types in return value</param>
+        /// <returns>Enumeration of all derived types</returns>
         public static IEnumerable<Type> FindAllDerivedTypes(this Type type, Assembly assembly = null, bool includeSelf = false, bool includeAbstract = false)
         {
             if (assembly == null)
+            {
                 assembly = Assembly.GetAssembly(type);
+            }
             return assembly
                 .GetTypes()
                 .Where(t =>
@@ -41,13 +62,26 @@ namespace cpGames.core.CpReflection
                     (includeAbstract || !t.IsAbstract) &&
                     type.IsAssignableFrom(t));
         }
-        
 
+        /// <summary>
+        /// Find all derived types of a base class (generic).
+        /// </summary>
+        /// <typeparam name="T">Type of base class to search</typeparam>
+        /// <param name="assembly">Assembly to search (if null use type's assembly)</param>
+        /// <param name="includeSelf">Include searched type in return value</param>
+        /// <param name="includeAbstract">Include abstract types in return value</param>
+        /// <returns>Enumeration of all derived types</returns>
         public static IEnumerable<Type> FindAllDerivedTypes<T>(Assembly assembly = null, bool includeSelf = false, bool includeAbstract = false)
         {
             return FindAllDerivedTypes(typeof(T), assembly, includeSelf, includeAbstract);
         }
 
+        /// <summary>
+        /// Check if type is derived from base type or is base type.
+        /// </summary>
+        /// <param name="derivedType">Type to check</param>
+        /// <param name="baseType">Base type</param>
+        /// <returns>True of derived, else False</returns>
         public static bool IsTypeOrDerived(this Type derivedType, Type baseType)
         {
             return baseType == derivedType ||
@@ -55,133 +89,235 @@ namespace cpGames.core.CpReflection
                 baseType.IsAssignableFrom(derivedType);
         }
 
+        /// <summary>
+        /// Check if instance type is derived from base instance type or is base instance type.
+        /// </summary>
+        /// <param name="baseObj">Base object instance</param>
+        /// <param name="derivedObj">Derived object instance</param>
+        /// <returns>True of derived, else False</returns>
         public static bool IsTypeOrDerived(object baseObj, object derivedObj)
         {
             return derivedObj.GetType().IsTypeOrDerived(baseObj.GetType());
         }
 
+        /// <summary>
+        /// heck if instance type is derived from base type or is base type.
+        /// </summary>
+        /// <param name="baseType">Base type</param>
+        /// <param name="derivedObj">Derived object instance</param>
+        /// <returns>True of derived, else False</returns>
         public static bool IsTypeOrDerived(Type baseType, object derivedObj)
         {
             return derivedObj.GetType().IsTypeOrDerived(baseType);
         }
 
-        public static object InvokeGeneric<T>(string methodName, Type t, object[] data)
+        /// <summary>
+        /// Invoke static generic method in a class.
+        /// </summary>
+        /// <param name="objectType">Object type containing the method to invoke</param>
+        /// <param name="methodName">Method name to invoke</param>
+        /// <param name="data">Method parameter array (null for parameterless method)</param>
+        /// <param name="t">Parameter types, must be in the same order as values in parameter array</param>
+        /// <returns>Method's return value if not void</returns>
+        public static object InvokeGenericStaticMethod(Type objectType, string methodName, object[] data = null, params Type[] t)
         {
-            var method = typeof(T).GetMethod(methodName,
+            var method = objectType.GetMethod(methodName,
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+            if (method == null)
+            {
+                throw new Exception(string.Format("Method <{0}> not found in object type <{1}>.", methodName, objectType.Name));
+            }
             var generic = method.MakeGenericMethod(t);
             return generic.Invoke(null, data);
         }
 
-        public static object InvokeGeneric<T>(string methodName, Type t, object data)
+        /// <summary>
+        /// Invoke generic static method in a class (with a single parameter).
+        /// </summary>
+        /// <param name="objectType">Object type containing the method to invoke</param>
+        /// <param name="methodName">Method name to invoke</param>
+        /// <param name="data">Method's parameter</param>
+        /// <param name="t">Parameter type</param>
+        /// <returns>Method's return value if not void</returns>
+        public static object InvokeGenericStaticMethod(Type objectType, string methodName, object data, Type t)
         {
-            var method = typeof(T).GetMethod(methodName,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-            var generic = method.MakeGenericMethod(t);
-            return generic.Invoke(null, new[] { data });
+            return InvokeGenericStaticMethod(objectType, methodName, new[] { data }, t);
         }
 
-        public static object InvokeGeneric<T>(string methodName, Type t)
+        /// <summary>
+        /// Invoke static generic method in a class (generic).
+        /// </summary>
+        /// <typeparam name="T">Object type containing the method to invoke</typeparam>
+        /// <param name="methodName">Method name to invoke</param>
+        /// <param name="data">Method parameter array (null for parameterless method)</param>
+        /// <param name="t">Parameter types, must be in the same order as values in parameter array</param>
+        /// <returns>Method's return value if not void</returns>
+        public static object InvokeGenericStaticMethod<T>(string methodName, object[] data = null, params Type[] t)
         {
-            var method = typeof(T).GetMethod(methodName,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-            var generic = method.MakeGenericMethod(t);
-            return generic.Invoke(null, null);
+            var objectType = typeof(T);
+            return InvokeGenericStaticMethod(objectType, methodName, data, t);
         }
 
-        public static object InvokeGeneric<T>(object source, string methodName, Type t)
+        /// <summary>
+        /// Invoke static generic method in a class (generic with a single parameter).
+        /// </summary>
+        /// <typeparam name="T">Object type containing the method to invoke</typeparam>
+        /// <param name="methodName">Method name to invoke</param>
+        /// <param name="data">Method's parameter</param>
+        /// <param name="t">Parameter type</param>
+        /// <returns>Method's return value if not void</returns>
+        public static object InvokeGenericStaticMethod<T>(string methodName, object data, Type t)
         {
-            var method = typeof(T).GetMethod(methodName,
+            return InvokeGenericStaticMethod<T>(methodName, new[] { data }, t);
+        }
+
+        /// <summary>
+        /// Invoke static generic method in a class.
+        /// </summary>
+        /// <param name="source">Object instance containing the method to invoke</param>
+        /// <param name="methodName">Method name to invoke</param>
+        /// <param name="data">Method parameter array (null for parameterless method)</param>
+        /// <param name="t">Parameter types, must be in the same order as values in parameter array</param>
+        /// <returns>Method's return value if not void</returns>
+        public static object InvokeGenericMethod(object source, string methodName, object[] data = null, params Type[] t)
+        {
+            var method = source.GetType().GetMethod(methodName,
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             var generic = method.MakeGenericMethod(t);
-            return generic.Invoke(source, null);
+            return generic.Invoke(source, data);
         }
 
-        public static object InvokeMethod(object source, string methodName, object[] data)
+        /// <summary>
+        /// Invoke generic instance method in a class (with a single parameter).
+        /// </summary>
+        /// <param name="source">Object instance containing the method to invoke</param>
+        /// <param name="methodName">Method name to invoke</param>
+        /// <param name="data">Method's parameter</param>
+        /// <param name="t">Parameter type</param>
+        /// <returns>Method's return value if not void</returns>
+        public static object InvokeGenericMethod(object source, string methodName, object data, Type t)
+        {
+            return InvokeGenericMethod(source, methodName, new[] { data }, t);
+        }
+
+        /// <summary>
+        /// Invoke static method in a class.
+        /// </summary>
+        /// <param name="objectType">Object type containing the method to invoke</param>
+        /// <param name="methodName">Method name to invoke</param>
+        /// <param name="data">Method parameter array (null for parameterless method)</param>
+        /// <returns>Method's return value if not void</returns>
+        public static object InvokeStaticMethod(Type objectType, string methodName, object[] data = null)
+        {
+            var method = objectType.GetMethod(methodName,
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+            return method.Invoke(null, data);
+        }
+
+        /// <summary>
+        /// Invoke static method in a class (with a single parameter).
+        /// </summary>
+        /// <param name="objectType">Object type containing the method to invoke</param>
+        /// <param name="methodName">Method name to invoke</param>
+        /// <param name="data">Method's parameter</param>
+        /// <returns>Method's return value if not void</returns>
+        public static object InvokeStaticMethod(Type objectType, string methodName, object data)
+        {
+            return InvokeStaticMethod(objectType, methodName, new[] { data });
+        }
+
+        /// <summary>
+        /// Invoke static static method in a class (generic).
+        /// </summary>
+        /// <typeparam name="T">Object type containing the method to invoke</typeparam>
+        /// <param name="methodName">Method name to invoke</param>
+        /// <param name="data">Method parameter array (null for parameterless method)</param>
+        /// <returns>Method's return value if not void</returns>
+        public static object InvokeStaticMethod<T>(string methodName, object[] data = null)
+        {
+            var objectType = typeof(T);
+            return InvokeStaticMethod(objectType, methodName, data);
+        }
+
+        /// <summary>
+        /// Invoke static method in a class (generic with a single parameter).
+        /// </summary>
+        /// <typeparam name="T">Object type containing the method to invoke</typeparam>
+        /// <param name="methodName">Method name to invoke</param>
+        /// <param name="data">Method's parameter</param>
+        /// <returns>Method's return value if not void</returns>
+        public static object InvokeStaticMethod<T>(string methodName, object data)
+        {
+            return InvokeStaticMethod<T>(methodName, new[] { data });
+        }
+
+        /// <summary>
+        /// Invoke instance method in a class.
+        /// </summary>
+        /// <param name="source">Object instance containing the method to invoke</param>
+        /// <param name="methodName">Method name to invoke</param>
+        /// <param name="data">Method parameter array (null for parameterless method)</param>
+        /// <returns>Method's return value if not void</returns>
+        public static object InvokeMethod(object source, string methodName, object[] data = null)
         {
             var method = source.GetType().GetMethod(methodName,
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             return method.Invoke(source, data);
         }
 
-        public static IEnumerable<FieldInfo> GetFields(this Type type)
+        /// <summary>
+        /// Invoke instance method in a class (with a single parameter).
+        /// </summary>
+        /// <param name="source">Object instance containing the method to invoke</param>
+        /// <param name="methodName">Method name to invoke</param>
+        /// <param name="data">Method's parameter</param>
+        /// <returns>Method's return value if not void</returns>
+        public static object InvokeMethod(object source, string methodName, object data)
         {
-            var fields =
-                type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            return fields;
+            return InvokeMethod(source, methodName, new[] { data });
         }
 
-        public static T Factory<T>(Func<Type, object> factoryMethod, Type type) where T : class
+        /// <summary>
+        /// Get member attribute of type T.
+        /// </summary>
+        /// <typeparam name="T">Attribute type to search for</typeparam>
+        /// <param name="member">Member to search, can be type, field, property, or method</param>
+        /// <param name="inherit">Search inheritance if applicable</param>
+        /// <returns>Attribute instance if found, otherwise null</returns>
+        public static T GetAttribute<T>(this MemberInfo member, bool inherit = true)
         {
-            T res = null;
-
-            if (factoryMethod != null)
-            {
-                res = (T)factoryMethod(type);
-            }
-            if (res == null)
-            {
-                var ctor = type.GetConstructor(Type.EmptyTypes);
-                res = (T)ctor.Invoke(null);
-            }
-            return res;
+            return (T)member.GetCustomAttributes(typeof(T), inherit).FirstOrDefault();
         }
 
-        public static T GetAttribute<T>(this FieldInfo field, bool inherit = true)
+        /// <summary>
+        /// Get all member attributes of type T.
+        /// </summary>
+        /// <typeparam name="T">Attribute type to search for</typeparam>
+        /// <param name="member">Member to search, can be type, field, property, or method</param>
+        /// <param name="inherit">Search inheritance if applicable</param>
+        /// <returns>Enumeration of all attributes of attribute type</returns>
+        public static IEnumerable<T> GetAttributes<T>(this MemberInfo member, bool inherit = true)
         {
-            return (T)field.GetCustomAttributes(typeof(T), inherit).FirstOrDefault();
+            return member.GetCustomAttributes(typeof(T), inherit).Cast<T>();
         }
 
-        public static List<T> GetAttributes<T>(this FieldInfo field, bool inherit = true)
+        /// <summary>
+        /// Check if member has an attribute of type T
+        /// </summary>
+        /// <typeparam name="T">Attribute type to search for</typeparam>
+        /// <param name="member">Member to search, can be type, field, property, or method</param>
+        /// <returns>True if attribute T exists, otherwise False</returns>
+        public static bool HasAttribute<T>(this MemberInfo member)
         {
-            return field.GetCustomAttributes(typeof(T), inherit).Cast<T>().ToList();
+            return member.GetAttribute<T>() != null;
         }
 
-        public static T GetAttribute<T>(this Type type, bool inherit = true)
-        {
-            return (T)type.GetCustomAttributes(typeof(T), true).FirstOrDefault();
-        }
-
-        public static T GetAttribute<T>(this MethodInfo method, bool inherit = true)
-        {
-            return (T)method.GetCustomAttributes(typeof(T), inherit).FirstOrDefault();
-        }
-
-        public static T GetAttribute<T>(this PropertyInfo property, bool inherit = true)
-        {
-            return (T)property.GetCustomAttributes(typeof(T), inherit).FirstOrDefault();
-        }
-
-        public static List<T> GetAttributes<T>(this Type type, bool inherit = true)
-        {
-            return type.GetCustomAttributes(typeof(T), inherit).Cast<T>().ToList();
-        }
-
-        public static List<T> GetAttributes<T>(this MethodInfo method, bool inherit = true)
-        {
-            return method.GetCustomAttributes(typeof(T), inherit).Cast<T>().ToList();
-        }
-
-        public static bool HasAttribute<T>(this FieldInfo field)
-        {
-            return field.GetAttribute<T>() != null;
-        }
-
-        public static bool HasAttribute<T>(this Type type)
-        {
-            return type.GetAttribute<T>() != null;
-        }
-
-        public static bool HasAttribute<T>(this MethodInfo method)
-        {
-            return method.GetAttribute<T>() != null;
-        }
-
-        public static bool HasAttribute<T>(this PropertyInfo property)
-        {
-            return property.GetAttribute<T>() != null;
-        }
-
+        /// <summary>
+        /// Check if generic type has a generic argument of specified type.
+        /// </summary>
+        /// <param name="type">Generic type</param>
+        /// <param name="argType">Argument type</param>
+        /// <returns>True if argument type exists, otherwise False</returns>
         public static bool HasGenericArgument(this Type type, Type argType)
         {
             var args = type.GetGenericArguments();
@@ -189,19 +325,29 @@ namespace cpGames.core.CpReflection
                 type.BaseType != null && type.BaseType.HasGenericArgument(argType);
         }
 
+        /// <summary>
+        /// Check if generic type has a generic argument of specified type (generic).
+        /// </summary>
+        /// <typeparam name="T">Argument type</typeparam>
+        /// <param name="type">Generic type</param>
+        /// <returns>True if argument type exists, otherwise False</returns>
         public static bool HasGenericArgument<T>(this Type type)
         {
             return type.HasGenericArgument(typeof(T));
         }
 
-        public static Type[] GetBaseGenericArguments(this Type type)
+        /// <summary>
+        /// Traverse inheritance hierarchy to find first type with generic arguments and return them.
+        /// </summary>
+        /// <param name="type">
+        /// Type to search, if generic it's arguments will be returned, otherwise it's base class will be
+        /// searched recursively
+        /// </param>
+        /// <returns>Array of generic types, null if none were found</returns>
+        public static Type[] GetGenericArgumentsEx(this Type type)
         {
             var args = type.GetGenericArguments();
-            if (args.Length > 0)
-            {
-                return args;
-            }
-            return type.BaseType?.GetBaseGenericArguments();
+            return args.Length > 0 ? args : type.BaseType?.GetGenericArgumentsEx();
         }
         #endregion
     }
